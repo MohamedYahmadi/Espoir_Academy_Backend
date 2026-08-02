@@ -3,6 +3,7 @@ import {
   getAllUsers,
   getUserById,
   updateUser,
+  resetUserPassword,
   deactivateUser,
   getUserChildren,
 } from '../controllers/userController.js';
@@ -35,6 +36,15 @@ router.put(
   authorize('admin'),
   updateUserValidator,
   updateUser
+);
+
+// PATCH /api/users/:id/reset-password - Admin only: Reset user password
+router.patch(
+  '/:id/reset-password',
+  protect,
+  authorize('admin'),
+  userIdValidator,
+  resetUserPassword
 );
 
 // DELETE /api/users/:id - Admin only: Deactivate user

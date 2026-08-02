@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { validationResult } from 'express-validator';
 import User from '../models/User.js';
 import { AuthRequest } from '../middleware/auth.js';
-import { sendWelcomeEmail, sendPasswordResetEmail } from '../services/emailService.js';
+import { sendWelcomeEmail, sendPasswordResetEmail, sendProfileUpdateEmail } from '../services/emailService.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -192,10 +192,6 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
 };
 
 /**
- * PUT /api/auth/profile
- * Update current authenticated user profile
- */
-/**
  * POST /api/auth/profile-picture
  * Upload current user's profile picture
  */
@@ -319,6 +315,11 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     await user.save();
+
+    // Send profile update email (non-blocking)
+    sendProfileUpdateEmail(user.email, user.fullName).catch((err) =>
+      console.error('Failed to send profile update email:', err)
+    );
 
     res.status(200).json({
       success: true,

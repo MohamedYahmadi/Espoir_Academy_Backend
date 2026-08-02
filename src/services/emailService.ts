@@ -1,15 +1,25 @@
 import nodemailer from 'nodemailer';
 
-// Create transporter from SMTP config
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false, // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+// Lazy transporter — created on first use, NOT at module load time.
+// This fixes the ESM import hoisting issue where dotenv.config() runs
+// AFTER all imports are loaded, causing process.env to be undefined.
+let _transporter: nodemailer.Transporter | null = null;
+
+const getTransporter = (): nodemailer.Transporter => {
+  if (!_transporter) {
+    _transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+    console.log('📧 Email transporter initialized:', process.env.SMTP_USER);
+  }
+  return _transporter;
+};
 
 // Base HTML wrapper matching frontend design (black bg, red accent)
 const wrapHtml = (inner: string): string => `
@@ -30,7 +40,7 @@ const wrapHtml = (inner: string): string => `
               <h1 style="color:#000000; font-size:32px; font-weight:700; margin:0 0 4px 0; letter-spacing:-0.5px;">
                 ESPOIRS <span style="color:#dc2626;">ACADEMY</span>
               </h1>
-              <p style="color:#9ca3af; font-size:14px; margin:0 0:20px 0;">Formez les champions de demain à Béja, Tunisie</p>
+              <p style="color:#9ca3af; font-size:14px; margin:0 0 20px 0;">Formez les champions de demain à Béja, Tunisie</p>
               <hr style="border:none; border-top:1px solid #e5e7eb; margin:24px 0;">
               ${inner}
             </td>
@@ -50,7 +60,29 @@ const wrapHtml = (inner: string): string => `
 </html>`;
 
 /**
- * Send welcome email after successful registration
+ * Helper: Send email with the branded wrapper
+ */
+const sendEmail = async (
+  to: string,
+  subject: string,
+  htmlBody: string
+): Promise<void> => {
+  const transporter = getTransporter();
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to,
+    subject,
+    html: wrapHtml(htmlBody),
+  });
+  console.log(`📧 Email sent to: ${to} | Subject: ${subject}`);
+};
+
+// ============================================================
+// EMAIL FUNCTIONS
+// ============================================================
+
+/**
+ * 1. Welcome email — sent after registration
  */
 export const sendWelcomeEmail = async (
   to: string,
@@ -78,17 +110,11 @@ export const sendWelcomeEmail = async (
       Si vous avez des questions, n'hésitez pas à nous contacter.
     </p>
   `;
-
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
-    to,
-    subject: 'Bienvenue à ESPOIRS ACADEMY — Votre compte est créé !',
-    html: wrapHtml(html),
-  });
+  await sendEmail(to, 'Bienvenue à ESPOIRS ACADEMY — Votre compte est créé !', html);
 };
 
 /**
- * Send password reset email with token
+ * 2. Password reset email — sent on forgot-password request
  */
 export const sendPasswordResetEmail = async (
   to: string,
@@ -96,7 +122,6 @@ export const sendPasswordResetEmail = async (
   resetToken: string
 ): Promise<void> => {
   const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
-
   const html = `
     <h2 style="color:#dc2626; font-size:24px; margin:0 0 20px 0;">Réinitialisation de mot de passe</h2>
     <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 16px 0;">
@@ -125,13 +150,213 @@ export const sendPasswordResetEmail = async (
       Si vous n'avez pas demandé cette réinitialisation, veuillez ignorer cet email.
     </p>
   `;
-
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
-    to,
-    subject: 'Réinitialisation de mot de passe — ESPOIRS ACADEMY',
-    html: wrapHtml(html),
-  });
+  await sendEmail(to, 'Réinitialisation de mot de passe — ESPOIRS ACADEMY', html);
 };
 
-export default transporter;
+/**
+ * 3. Profile update email — sent when user updates their profile
+ */
+export const sendProfileUpdateEmail = async (
+  to: string,
+  fullName: string
+): Promise<void> => {
+  const html = `
+    <h2 style="color:#dc2626; font-size:24px; margin:0 0 20px 0;">Profil mis à jour</h2>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 16px 0;">
+      Cher(e) ${fullName},
+    </p>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      Vos informations personnelles ont été modifiées avec succès. Si vous n'êtes pas à l'origine 
+      de cette modification, veuillez contacter l'administration immédiatement.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:30px 0;">
+      <tr>
+        <td align="center" style="background:#dc2626; color:#ffffff; padding:14px 32px; border-radius:8px; font-size:16px; font-weight:600;">
+          <a href="${process.env.CLIENT_URL}/profile" style="color:#ffffff; text-decoration:none;">
+            Voir mon profil
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:#6b7280; font-size:14px; line-height:1.6; margin:0;">
+      Merci de votre confiance.
+    </p>
+  `;
+  await sendEmail(to, 'Votre profil a été mis à jour — ESPOIRS ACADEMY', html);
+};
+
+/**
+ * 4. Enrollment created email — sent when parent enrolls child in a sport
+ */
+export const sendEnrollmentCreatedEmail = async (
+  to: string,
+  parentName: string,
+  childName: string,
+  sportName: string
+): Promise<void> => {
+  const html = `
+    <h2 style="color:#dc2626; font-size:24px; margin:0 0 20px 0;">Inscription enregistrée</h2>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 16px 0;">
+      Cher(e) ${parentName},
+    </p>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      L'inscription de votre enfant <strong>${childName}</strong> au programme 
+      <strong>${sportName}</strong> a été enregistrée avec succès. Elle est actuellement 
+      <span style="color:#f59e0b; font-weight:600;">en attente de validation</span> par l'administration.
+    </p>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      Vous recevrez un email dès que l'inscription sera approuvée ou rejetée.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:30px 0;">
+      <tr>
+        <td align="center" style="background:#dc2626; color:#ffffff; padding:14px 32px; border-radius:8px; font-size:16px; font-weight:600;">
+          <a href="${process.env.CLIENT_URL}/dashboard" style="color:#ffffff; text-decoration:none;">
+            Suivre l'inscription
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:#6b7280; font-size:14px; line-height:1.6; margin:0;">
+      Merci de votre confiance.
+    </p>
+  `;
+  await sendEmail(to, `Inscription de ${childName} à ${sportName} — ESPOIRS ACADEMY`, html);
+};
+
+/**
+ * 5. Enrollment status email — sent when admin approves/rejects enrollment
+ */
+export const sendEnrollmentStatusEmail = async (
+  to: string,
+  parentName: string,
+  childName: string,
+  sportName: string,
+  status: string
+): Promise<void> => {
+  const isApproved = status === 'APPROVED';
+  const statusColor = isApproved ? '#16a34a' : '#dc2626';
+  const statusText = isApproved ? 'approuvée' : 'refusée';
+  const statusIcon = isApproved ? '✅' : '❌';
+
+  const html = `
+    <h2 style="color:${statusColor}; font-size:24px; margin:0 0 20px 0;">
+      Inscription ${statusText} ${statusIcon}
+    </h2>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 16px 0;">
+      Cher(e) ${parentName},
+    </p>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      L'inscription de votre enfant <strong>${childName}</strong> au programme 
+      <strong>${sportName}</strong> a été <strong style="color:${statusColor};">${statusText}</strong> 
+      par l'administration.
+    </p>
+    ${isApproved ? `
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      Vous pouvez maintenant consulter les horaires d'entraînement et préparer la rentrée de votre enfant.
+    </p>
+    ` : `
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      Pour plus d'informations, veuillez contacter l'administration de l'académie.
+    </p>
+    `}
+    <table cellpadding="0" cellspacing="0" style="margin:30px 0;">
+      <tr>
+        <td align="center" style="background:#dc2626; color:#ffffff; padding:14px 32px; border-radius:8px; font-size:16px; font-weight:600;">
+          <a href="${process.env.CLIENT_URL}/dashboard" style="color:#ffffff; text-decoration:none;">
+            Voir mon espace
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:#6b7280; font-size:14px; line-height:1.6; margin:0;">
+      ${isApproved ? 'Félicitations et bienvenue dans la famille ESPOIRS ACADEMY !' : 'Cordialement, l\'équipe ESPOIRS ACADEMY.'}
+    </p>
+  `;
+  await sendEmail(
+    to,
+    `Inscription ${statusText} — ${sportName} — ESPOIRS ACADEMY`,
+    html
+  );
+};
+
+/**
+ * 6. Schedule update email — sent when admin updates a schedule
+ */
+export const sendScheduleUpdateEmail = async (
+  to: string,
+  parentName: string,
+  childName: string,
+  sportName: string,
+  scheduleInfo: string
+): Promise<void> => {
+  const html = `
+    <h2 style="color:#dc2626; font-size:24px; margin:0 0 20px 0;">Planning modifié</h2>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 16px 0;">
+      Cher(e) ${parentName},
+    </p>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      Le planning du programme <strong>${sportName}</strong> auquel votre enfant 
+      <strong>${childName}</strong> est inscrit a été modifié.
+    </p>
+    <div style="background:#f3f4f6; border-left:4px solid #dc2626; padding:16px 20px; margin:0 0 24px 0; border-radius:4px;">
+      <p style="color:#374151; font-size:15px; margin:0;">
+        <strong>Nouveau planning :</strong><br>
+        ${scheduleInfo}
+      </p>
+    </div>
+    <table cellpadding="0" cellspacing="0" style="margin:30px 0;">
+      <tr>
+        <td align="center" style="background:#dc2626; color:#ffffff; padding:14px 32px; border-radius:8px; font-size:16px; font-weight:600;">
+          <a href="${process.env.CLIENT_URL}/schedule" style="color:#ffffff; text-decoration:none;">
+            Voir le planning
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:#6b7280; font-size:14px; line-height:1.6; margin:0;">
+      Merci de prendre note de ces changements.
+    </p>
+  `;
+  await sendEmail(to, `Planning modifié — ${sportName} — ESPOIRS ACADEMY`, html);
+};
+
+/**
+ * 7. Admin password reset email — sent when admin resets a user's password
+ */
+export const sendAdminPasswordResetEmail = async (
+  to: string,
+  fullName: string,
+  newPassword: string
+): Promise<void> => {
+  const html = `
+    <h2 style="color:#dc2626; font-size:24px; margin:0 0 20px 0;">Mot de passe réinitialisé</h2>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 16px 0;">
+      Cher(e) ${fullName},
+    </p>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      Votre mot de passe a été réinitialisé par l'administration de l'académie. 
+      Veuillez utiliser le mot de passe temporaire ci-dessous pour vous connecter, 
+      puis le changer dès que possible.
+    </p>
+    <div style="background:#f3f4f6; border-left:4px solid #dc2626; padding:16px 20px; margin:0 0 24px 0; border-radius:4px;">
+      <p style="color:#374151; font-size:18px; margin:0; font-family:monospace;">
+        <strong>Mot de passe temporaire :</strong> ${newPassword}
+      </p>
+    </div>
+    <table cellpadding="0" cellspacing="0" style="margin:30px 0;">
+      <tr>
+        <td align="center" style="background:#dc2626; color:#ffffff; padding:14px 32px; border-radius:8px; font-size:16px; font-weight:600;">
+          <a href="${process.env.CLIENT_URL}/login" style="color:#ffffff; text-decoration:none;">
+            Se Connecter
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:#6b7280; font-size:14px; line-height:1.6; margin:0;">
+      ⚠️ Pour votre sécurité, veuillez changer ce mot de passe dès votre prochaine connexion.
+    </p>
+  `;
+  await sendEmail(to, 'Votre mot de passe a été réinitialisé — ESPOIRS ACADEMY', html);
+};
+
+export default getTransporter;

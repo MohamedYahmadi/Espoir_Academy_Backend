@@ -3,6 +3,10 @@ import { validationResult } from 'express-validator';
 import { AuthRequest } from '../middleware/auth.js';
 import Schedule from '../models/Schedule.js';
 import Sport from '../models/Sport.js';
+import Enrollment from '../models/Enrollment.js';
+import Child from '../models/Child.js';
+import User from '../models/User.js';
+import { sendScheduleUpdateEmail } from '../services/emailService.js';
 
 /**
  * GET /api/schedules
@@ -120,7 +124,7 @@ export const createSchedule = async (
 
 /**
  * PUT /api/schedules/:id
- * Admin only: Update a schedule
+ * Admin only: Update a schedule and notify affected parents
  */
 export const updateSchedule = async (
   req: AuthRequest,
@@ -152,6 +156,44 @@ export const updateSchedule = async (
         message: 'Schedule not found.',
       });
       return;
+    }
+
+    // Send schedule update emails to parents of enrolled children (non-blocking)
+    const sport = schedule.sportId as any;
+    if (sport) {
+      // Build schedule info string for the email
+      const scheduleInfo = `${schedule.dayOfWeek} : ${schedule.startTime} - ${schedule.endTime}${schedule.location ? ` | Lieu: ${schedule.location}` : ''}${schedule.coachName ? ` | Coach: ${schedule.coachName}` : ''}`;
+
+      // Find all approved enrollments for this sport
+      const enrollments = await Enrollment.find({
+        sportId: sport._id,
+        status: 'APPROVED',
+      }).populate({
+        path: 'childId',
+        select: 'firstName lastName parentId',
+        populate: {
+          path: 'parentId',
+          select: 'fullName email',
+        },
+      });
+
+      // Send email to each parent
+      for (const enrollment of enrollments) {
+        const child = enrollment.childId as any;
+        const parent = child?.parentId;
+        if (parent && parent.email) {
+          const childName = `${child.firstName} ${child.lastName}`;
+          sendScheduleUpdateEmail(
+            parent.email,
+            parent.fullName,
+            childName,
+            sport.name,
+            scheduleInfo
+          ).catch((err) =>
+            console.error('Failed to send schedule update email:', err)
+          );
+        }
+      }
     }
 
     res.status(200).json({

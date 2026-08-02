@@ -4,6 +4,8 @@ import { AuthRequest } from '../middleware/auth.js';
 import Enrollment from '../models/Enrollment.js';
 import Child from '../models/Child.js';
 import Sport from '../models/Sport.js';
+import User from '../models/User.js';
+import { sendEnrollmentCreatedEmail, sendEnrollmentStatusEmail } from '../services/emailService.js';
 
 /**
  * Calculate age from date of birth
@@ -155,6 +157,15 @@ export const createEnrollment = async (
     const populatedEnrollment = await Enrollment.findById(enrollment._id)
       .populate('childId', 'firstName lastName dateOfBirth gender')
       .populate('sportId', 'name price');
+
+    // Send enrollment created email to parent (non-blocking)
+    const parent = await User.findById(parentId);
+    if (parent) {
+      const childName = `${child.firstName} ${child.lastName}`;
+      sendEnrollmentCreatedEmail(parent.email, parent.fullName, childName, sport.name).catch((err) =>
+        console.error('Failed to send enrollment created email:', err)
+      );
+    }
 
     res.status(201).json({
       success: true,
@@ -357,6 +368,26 @@ export const updateEnrollmentStatus = async (
         path: 'sportId',
         select: 'name price scheduleInfo',
       });
+
+    // Send enrollment status email to parent (non-blocking)
+    if (populatedEnrollment) {
+      const child = populatedEnrollment.childId as any;
+      const sport = populatedEnrollment.sportId as any;
+      const parent = child?.parentId;
+
+      if (parent && sport) {
+        const childName = `${child.firstName} ${child.lastName}`;
+        sendEnrollmentStatusEmail(
+          parent.email,
+          parent.fullName,
+          childName,
+          sport.name,
+          status
+        ).catch((err) =>
+          console.error('Failed to send enrollment status email:', err)
+        );
+      }
+    }
 
     const action = status === 'APPROVED' ? 'approved' : 'rejected';
 

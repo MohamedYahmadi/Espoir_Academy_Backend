@@ -3,6 +3,19 @@ import { validationResult } from 'express-validator';
 import { AuthRequest } from '../middleware/auth.js';
 import User from '../models/User.js';
 import Child from '../models/Child.js';
+import { sendAdminPasswordResetEmail } from '../services/emailService.js';
+
+/**
+ * Generate a random temporary password
+ */
+const generateTempPassword = (): string => {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let password = '';
+  for (let i = 0; i < 10; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+};
 
 /**
  * GET /api/users
@@ -139,6 +152,55 @@ export const updateUser = async (
       success: false,
       status: 500,
       message: 'Server error while updating user.',
+    });
+  }
+};
+
+/**
+ * PATCH /api/users/:id/reset-password
+ * Admin only: Reset a user's password and send them an email with the new temporary password
+ */
+export const resetUserPassword = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        status: 404,
+        message: 'User not found.',
+      });
+      return;
+    }
+
+    // Generate a temporary password
+    const tempPassword = generateTempPassword();
+
+    // Set the new password (will be hashed by the pre-save hook)
+    user.password = tempPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    // Send admin password reset email (non-blocking)
+    sendAdminPasswordResetEmail(user.email, user.fullName, tempPassword).catch((err) =>
+      console.error('Failed to send admin password reset email:', err)
+    );
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Password reset successfully. The user will receive an email with the new temporary password.',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: 500,
+      message: 'Server error while resetting user password.',
     });
   }
 };
