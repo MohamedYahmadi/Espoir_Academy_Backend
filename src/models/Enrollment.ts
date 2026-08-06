@@ -6,6 +6,11 @@ export interface IEnrollment extends Document {
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   paymentStatus: 'UNPAID' | 'PENDING' | 'PAID';
   parentNotes?: string;
+  schedule?: {
+    day?: string;
+    startTime?: string;
+    endTime?: string;
+  };
   submittedAt: Date;
 }
 
@@ -36,6 +41,20 @@ const enrollmentSchema = new Schema<IEnrollment>(
     parentNotes: {
       type: String,
       default: '',
+    },
+    schedule: {
+      day: {
+        type: String,
+        default: '',
+      },
+      startTime: {
+        type: String,
+        default: '',
+      },
+      endTime: {
+        type: String,
+        default: '',
+      },
     },
     submittedAt: {
       type: Date,

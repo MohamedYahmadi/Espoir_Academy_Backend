@@ -5,6 +5,7 @@ import {
   getChildById,
   updateChild,
   uploadChildDocuments as uploadChildDocsController,
+  deleteChild,
 } from '../controllers/childController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { uploadChildDocuments as uploadMiddleware } from '../middleware/upload.js';
@@ -56,6 +57,15 @@ router.patch(
   authorize('parent', 'admin'),
   uploadMiddleware,
   uploadChildDocsController
+);
+
+// DELETE /api/children/:id - Parent or Admin: Delete child profile
+router.delete(
+  '/:id',
+  protect,
+  authorize('parent', 'admin'),
+  childIdValidator,
+  deleteChild
 );
 
 export default router;

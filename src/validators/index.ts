@@ -224,6 +224,22 @@ export const createEnrollmentValidator = [
     .isMongoId()
     .withMessage('Invalid sport ID'),
   body('parentNotes').optional().trim(),
+  body('schedule').optional().isObject().withMessage('Schedule must be an object'),
+  body('schedule.day')
+    .optional()
+    .trim()
+    .isIn(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
+    .withMessage('Schedule day must be a valid day'),
+  body('schedule.startTime')
+    .optional()
+    .trim()
+    .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .withMessage('Start time must be in HH:MM format (24h)'),
+  body('schedule.endTime')
+    .optional()
+    .trim()
+    .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .withMessage('End time must be in HH:MM format (24h)'),
 ];
 
 export const enrollmentStatusValidator = [

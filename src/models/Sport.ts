@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface ISport extends Document {
   name: string;
-  nameLatin?: string;
+  nameArabic?: string;
   price: number;
   description?: string;
   maxCapacity: number;
@@ -19,7 +19,7 @@ const sportSchema = new Schema<ISport>(
       unique: true,
       trim: true,
     },
-    nameLatin: {
+    nameArabic: {
       type: String,
       default: '',
       trim: true,

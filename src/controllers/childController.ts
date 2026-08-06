@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { validationResult } from 'express-validator';
 import { AuthRequest } from '../middleware/auth.js';
 import Child from '../models/Child.js';
+import Enrollment from '../models/Enrollment.js';
+import Payment from '../models/Payment.js';
 
 /**
  * POST /api/children
@@ -40,8 +42,12 @@ export const createChild = async (
 
     const isComplete = !!(documents.photoUrl && documents.birthCertificateUrl && documents.medicalCertificateUrl);
 
+    const parentId = req.user!.role === 'admin' && req.body.parentId
+      ? req.body.parentId
+      : req.user!.id;
+
     const child = await Child.create({
-      parentId: req.user!.id,
+      parentId,
       firstName,
       lastName,
       dateOfBirth,
@@ -105,10 +111,11 @@ export const getChildById = async (
   try {
     const { id } = req.params;
 
-    const child = await Child.findOne({
-      _id: id,
-      parentId: req.user!.id,
-    });
+    const query = req.user!.role === 'admin'
+      ? { _id: id }
+      : { _id: id, parentId: req.user!.id };
+
+    const child = await Child.findOne(query);
 
     if (!child) {
       res.status(404).json({
@@ -157,7 +164,11 @@ export const updateChild = async (
     const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
     const basePath = 'uploads/documents';
 
-    const child = await Child.findOne({ _id: id, parentId: req.user!.id });
+    const query = req.user!.role === 'admin'
+      ? { _id: id }
+      : { _id: id, parentId: req.user!.id };
+
+    const child = await Child.findOne(query);
 
     if (!child) {
       res.status(404).json({
@@ -227,7 +238,11 @@ export const uploadChildDocuments = async (
       return;
     }
 
-    const child = await Child.findOne({ _id: id, parentId: req.user!.id });
+    const query = req.user!.role === 'admin'
+      ? { _id: id }
+      : { _id: id, parentId: req.user!.id };
+
+    const child = await Child.findOne(query);
     if (!child) {
       res.status(404).json({
         success: false,
@@ -269,6 +284,51 @@ export const uploadChildDocuments = async (
       success: false,
       status: 500,
       message: 'Server error while uploading documents.',
+    });
+  }
+};
+
+/**
+ * DELETE /api/children/:id
+ * Parent or Admin: Delete child profile and cascade enrollments and payments
+ */
+export const deleteChild = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const query = req.user!.role === 'admin'
+      ? { _id: id }
+      : { _id: id, parentId: req.user!.id };
+
+    const child = await Child.findOneAndDelete(query);
+
+    if (!child) {
+      res.status(404).json({
+        success: false,
+        status: 404,
+        message: 'Child not found or not associated with your account.',
+      });
+      return;
+    }
+
+    // Cascade delete enrollments and payments
+    await Promise.all([
+      Enrollment.deleteMany({ childId: id }),
+      Payment.deleteMany({ childId: id }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Child profile deleted successfully.',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: 500,
+      message: 'Server error while deleting child profile.',
     });
   }
 };

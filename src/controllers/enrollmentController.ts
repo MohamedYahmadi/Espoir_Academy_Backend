@@ -42,7 +42,7 @@ export const createEnrollment = async (
       return;
     }
 
-    const { childId, sportId, parentNotes } = req.body;
+    const { childId, sportId, parentNotes, schedule } = req.body;
     const parentId = req.user!.id;
 
     // =========================================================
@@ -148,10 +148,19 @@ export const createEnrollment = async (
     // =========================================================
     // Create enrollment
     // =========================================================
+    const normalizedSchedule = schedule && typeof schedule === 'object'
+      ? {
+          day: String(schedule.day || ''),
+          startTime: String(schedule.startTime || ''),
+          endTime: String(schedule.endTime || ''),
+        }
+      : undefined;
+
     const enrollment = await Enrollment.create({
       childId,
       sportId,
       parentNotes: parentNotes || '',
+      schedule: normalizedSchedule,
     });
 
     const populatedEnrollment = await Enrollment.findById(enrollment._id)
