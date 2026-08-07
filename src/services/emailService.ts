@@ -60,7 +60,27 @@ const wrapHtml = (inner: string): string => `
 </html>`;
 
 /**
- * Helper: Send email with the branded wrapper
+ * Convert a styled HTML email body into a readable plain-text version,
+ * preserving link targets. Used so every email carries a text/plain
+ * alternative (HTML-only emails are a common spam trigger).
+ */
+const toPlainText = (html: string): string =>
+  html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '$2 ($1)')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>|<\/h[1-6]>|<\/div>|<\/tr>|<\/td>|<hr[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n\s*\n+/g, '\n\n')
+    .trim();
+
+/**
+ * Helper: Send email with the branded wrapper + spam-score-friendly headers
  */
 const sendEmail = async (
   to: string,
@@ -68,11 +88,19 @@ const sendEmail = async (
   htmlBody: string
 ): Promise<void> => {
   const transporter = getTransporter();
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER || '';
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    from: `"ESPOIRS ACADEMY" <${from}>`,
     to,
     subject,
     html: wrapHtml(htmlBody),
+    text: toPlainText(htmlBody),
+    headers: {
+      'X-Mailer': 'ESPOIRS ACADEMY',
+      'X-Priority': '3',
+      'List-Unsubscribe': `<mailto:${from}?subject=unsubscribe>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
   });
   console.log(`📧 Email sent to: ${to} | Subject: ${subject}`);
 };
@@ -357,6 +385,79 @@ export const sendAdminPasswordResetEmail = async (
     </p>
   `;
   await sendEmail(to, 'Votre mot de passe a été réinitialisé — ESPOIRS ACADEMY', html);
+};
+
+/**
+ * 8. Password changed email — sent when user changes their password from their profile
+ */
+export const sendPasswordChangedEmail = async (
+  to: string,
+  fullName: string
+): Promise<void> => {
+  const html = `
+    <h2 style="color:#dc2626; font-size:24px; margin:0 0 20px 0;">Mot de passe modifié</h2>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 16px 0;">
+      Cher(e) ${fullName},
+    </p>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      Votre mot de passe a été modifié avec succès. Vous pouvez maintenant vous connecter 
+      à votre espace avec votre nouveau mot de passe.
+    </p>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      Si vous n'êtes pas à l'origine de cette modification, veuillez contacter 
+      l'administration de l'académie immédiatement.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:30px 0;">
+      <tr>
+        <td align="center" style="background:#dc2626; color:#ffffff; padding:14px 32px; border-radius:8px; font-size:16px; font-weight:600;">
+          <a href="${process.env.CLIENT_URL}/login" style="color:#ffffff; text-decoration:none;">
+            Se Connecter
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:#6b7280; font-size:14px; line-height:1.6; margin:0;">
+      ⚠️ Pour votre sécurité, ne partagez jamais votre mot de passe avec personne.
+    </p>
+  `;
+  await sendEmail(to, 'Votre mot de passe a été modifié — ESPOIRS ACADEMY', html);
+};
+
+/**
+ * 9. Admin user update email — sent when an admin updates a user's account information
+ */
+export const sendAdminUserUpdatedEmail = async (
+  to: string,
+  fullName: string
+): Promise<void> => {
+  const html = `
+    <h2 style="color:#dc2626; font-size:24px; margin:0 0 20px 0;">Informations du compte mises à jour</h2>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 16px 0;">
+      Cher(e) ${fullName},
+    </p>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      L'administration de l'académie a mis à jour les informations de votre compte 
+      (nom, coordonnées, rôle ou statut). Vous pouvez vous connecter pour consulter 
+      vos informations à jour.
+    </p>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      Si vous n'êtes pas à l'origine de cette modification ou si elle vous semble erronée, 
+      veuillez contacter l'administration immédiatement.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:30px 0;">
+      <tr>
+        <td align="center" style="background:#dc2626; color:#ffffff; padding:14px 32px; border-radius:8px; font-size:16px; font-weight:600;">
+          <a href="${process.env.CLIENT_URL}/login" style="color:#ffffff; text-decoration:none;">
+            Se Connecter
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:#6b7280; font-size:14px; line-height:1.6; margin:0;">
+      Cordialement, l'équipe ESPOIRS ACADEMY.
+    </p>
+  `;
+  await sendEmail(to, 'Vos informations ont été mises à jour — ESPOIRS ACADEMY', html);
 };
 
 export default getTransporter;

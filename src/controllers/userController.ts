@@ -3,7 +3,7 @@ import { validationResult } from 'express-validator';
 import { AuthRequest } from '../middleware/auth.js';
 import User from '../models/User.js';
 import Child from '../models/Child.js';
-import { sendAdminPasswordResetEmail } from '../services/emailService.js';
+import { sendAdminPasswordResetEmail, sendAdminUserUpdatedEmail } from '../services/emailService.js';
 
 /**
  * Generate a random temporary password
@@ -140,6 +140,11 @@ export const updateUser = async (
     if (isActive !== undefined) user.isActive = isActive;
 
     await user.save();
+
+    // Send admin user update email (non-blocking)
+    sendAdminUserUpdatedEmail(user.email, user.fullName).catch((err) =>
+      console.error('Failed to send admin user update email:', err)
+    );
 
     res.status(200).json({
       success: true,

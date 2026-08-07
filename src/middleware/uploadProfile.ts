@@ -1,35 +1,13 @@
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Define uploads directory for profile pictures
-const uploadsDir = path.resolve(__dirname, '..', '..', 'uploads', 'profiles');
-
-// Ensure the directory exists
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
 
 // Allowed file types
 const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png'];
 
 const allowedExtensions = ['.jpg', '.jpeg', '.png'];
 
-// Storage configuration
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const uniqueName = `profile-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-    cb(null, uniqueName);
-  },
-});
+// Files are kept in memory; persistence is handled by the storage service
+const storage = multer.memoryStorage();
 
 // File filter
 const fileFilter = (

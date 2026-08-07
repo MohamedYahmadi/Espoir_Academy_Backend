@@ -2,8 +2,22 @@ import { Response } from 'express';
 import { validationResult } from 'express-validator';
 import { AuthRequest } from '../middleware/auth.js';
 import Child from '../models/Child.js';
+import User from '../models/User.js';
 import Enrollment from '../models/Enrollment.js';
 import Payment from '../models/Payment.js';
+import { sendAdminUserUpdatedEmail } from '../services/emailService.js';
+import { saveFile, deleteFile } from '../services/storageService.js';
+
+/**
+ * Persist a single uploaded file and return its relative storage path
+ */
+const persistFile = async (file: Express.Multer.File): Promise<string> =>
+  saveFile(file.buffer, {
+    folder: 'documents',
+    fieldname: file.fieldname,
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+  });
 
 /**
  * POST /api/children
@@ -26,7 +40,6 @@ export const createChild = async (
 
     const { firstName, lastName, dateOfBirth, gender, medicalNotes } = req.body;
     const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
-    const basePath = 'uploads/documents';
 
     const documents: {
       photoUrl?: string;
@@ -35,9 +48,9 @@ export const createChild = async (
     } = {};
 
     if (files) {
-      if (files.photo) documents.photoUrl = `${basePath}/${files.photo[0].filename}`;
-      if (files.birthCertificate) documents.birthCertificateUrl = `${basePath}/${files.birthCertificate[0].filename}`;
-      if (files.medicalCertificate) documents.medicalCertificateUrl = `${basePath}/${files.medicalCertificate[0].filename}`;
+      if (files.photo) documents.photoUrl = await persistFile(files.photo[0]);
+      if (files.birthCertificate) documents.birthCertificateUrl = await persistFile(files.birthCertificate[0]);
+      if (files.medicalCertificate) documents.medicalCertificateUrl = await persistFile(files.medicalCertificate[0]);
     }
 
     const isComplete = !!(documents.photoUrl && documents.birthCertificateUrl && documents.medicalCertificateUrl);
@@ -162,7 +175,6 @@ export const updateChild = async (
     const { id } = req.params;
     const { firstName, lastName, dateOfBirth, gender, medicalNotes } = req.body;
     const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
-    const basePath = 'uploads/documents';
 
     const query = req.user!.role === 'admin'
       ? { _id: id }
@@ -188,9 +200,21 @@ export const updateChild = async (
 
     // Update documents if new files are provided
     if (files) {
-      if (files.photo) child.documents.photoUrl = `${basePath}/${files.photo[0].filename}`;
-      if (files.birthCertificate) child.documents.birthCertificateUrl = `${basePath}/${files.birthCertificate[0].filename}`;
-      if (files.medicalCertificate) child.documents.medicalCertificateUrl = `${basePath}/${files.medicalCertificate[0].filename}`;
+      if (files.photo) {
+        const old = child.documents.photoUrl;
+        child.documents.photoUrl = await persistFile(files.photo[0]);
+        if (old) await deleteFile(old).catch(() => {});
+      }
+      if (files.birthCertificate) {
+        const old = child.documents.birthCertificateUrl;
+        child.documents.birthCertificateUrl = await persistFile(files.birthCertificate[0]);
+        if (old) await deleteFile(old).catch(() => {});
+      }
+      if (files.medicalCertificate) {
+        const old = child.documents.medicalCertificateUrl;
+        child.documents.medicalCertificateUrl = await persistFile(files.medicalCertificate[0]);
+        if (old) await deleteFile(old).catch(() => {});
+      }
 
       // Update isComplete flag
       child.isComplete = !!(
@@ -201,6 +225,16 @@ export const updateChild = async (
     }
 
     await child.save();
+
+    // If admin updated the child, notify the parent via email (non-blocking)
+    if (req.user!.role === 'admin') {
+      const parent = await User.findById(child.parentId);
+      if (parent) {
+        sendAdminUserUpdatedEmail(parent.email, parent.fullName).catch((err) =>
+          console.error('Failed to send admin child update email:', err)
+        );
+      }
+    }
 
     res.status(200).json({
       success: true,
@@ -252,16 +286,20 @@ export const uploadChildDocuments = async (
       return;
     }
 
-    const basePath = 'uploads/documents';
-
     if (files.photo) {
-      child.documents.photoUrl = `${basePath}/${files.photo[0].filename}`;
+      const old = child.documents.photoUrl;
+      child.documents.photoUrl = await persistFile(files.photo[0]);
+      if (old) await deleteFile(old).catch(() => {});
     }
     if (files.birthCertificate) {
-      child.documents.birthCertificateUrl = `${basePath}/${files.birthCertificate[0].filename}`;
+      const old = child.documents.birthCertificateUrl;
+      child.documents.birthCertificateUrl = await persistFile(files.birthCertificate[0]);
+      if (old) await deleteFile(old).catch(() => {});
     }
     if (files.medicalCertificate) {
-      child.documents.medicalCertificateUrl = `${basePath}/${files.medicalCertificate[0].filename}`;
+      const old = child.documents.medicalCertificateUrl;
+      child.documents.medicalCertificateUrl = await persistFile(files.medicalCertificate[0]);
+      if (old) await deleteFile(old).catch(() => {});
     }
 
     // Update isComplete flag

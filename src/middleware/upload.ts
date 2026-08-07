@@ -1,12 +1,5 @@
 import multer from 'multer';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Define uploads directory (go up from middleware/ to project root, then uploads/documents/)
-const uploadsDir = path.resolve(__dirname, '..', '..', 'uploads', 'documents');
 
 // Allowed file types
 const allowedMimeTypes = [
@@ -18,17 +11,8 @@ const allowedMimeTypes = [
 
 const allowedExtensions = ['.jpg', '.jpeg', '.png', '.pdf'];
 
-// Storage configuration
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const uniqueName = `${file.fieldname}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-    cb(null, uniqueName);
-  },
-});
+// Files are kept in memory; persistence is handled by the storage service
+const storage = multer.memoryStorage();
 
 // File filter
 const fileFilter = (

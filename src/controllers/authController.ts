@@ -4,7 +4,8 @@ import crypto from 'crypto';
 import { validationResult } from 'express-validator';
 import User from '../models/User.js';
 import { AuthRequest } from '../middleware/auth.js';
-import { sendWelcomeEmail, sendPasswordResetEmail, sendProfileUpdateEmail } from '../services/emailService.js';
+import { sendWelcomeEmail, sendPasswordResetEmail, sendProfileUpdateEmail, sendPasswordChangedEmail } from '../services/emailService.js';
+import { saveFile, deleteFile } from '../services/storageService.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -216,9 +217,21 @@ export const uploadProfilePicture = async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    const basePath = 'uploads/profiles';
-    user.profilePicture = `${basePath}/${req.file.filename}`;
+    const profilePicture = await saveFile(req.file.buffer, {
+      folder: 'profiles',
+      fieldname: 'profilePicture',
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+    });
+
+    const oldProfilePicture = user.profilePicture;
+    user.profilePicture = profilePicture;
     await user.save();
+
+    // Remove the previous picture from storage (best-effort)
+    if (oldProfilePicture) {
+      await deleteFile(oldProfilePicture).catch(() => {});
+    }
 
     res.status(200).json({
       success: true,
@@ -251,8 +264,14 @@ export const removeProfilePicture = async (req: AuthRequest, res: Response): Pro
       return;
     }
 
+    const oldProfilePicture = user.profilePicture;
     user.profilePicture = '';
     await user.save();
+
+    // Remove the picture from storage (best-effort)
+    if (oldProfilePicture) {
+      await deleteFile(oldProfilePicture).catch(() => {});
+    }
 
     res.status(200).json({
       success: true,
@@ -296,6 +315,8 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
+    let passwordChanged = false;
+
     // Update basic fields
     if (fullName) user.fullName = fullName;
     if (phone) user.phone = phone;
@@ -312,14 +333,21 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
         return;
       }
       user.password = newPassword;
+      passwordChanged = true;
     }
 
     await user.save();
 
-    // Send profile update email (non-blocking)
-    sendProfileUpdateEmail(user.email, user.fullName).catch((err) =>
-      console.error('Failed to send profile update email:', err)
-    );
+    // Send email (non-blocking) — password-changed email when relevant, else profile update email
+    if (passwordChanged) {
+      sendPasswordChangedEmail(user.email, user.fullName).catch((err) =>
+        console.error('Failed to send password changed email:', err)
+      );
+    } else {
+      sendProfileUpdateEmail(user.email, user.fullName).catch((err) =>
+        console.error('Failed to send profile update email:', err)
+      );
+    }
 
     res.status(200).json({
       success: true,
