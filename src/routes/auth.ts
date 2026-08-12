@@ -9,7 +9,7 @@ import {
   forgotPassword,
   resetPassword,
 } from '../controllers/authController.js';
-import { protect } from '../middleware/auth.js';
+import { protect, authorize } from '../middleware/auth.js';
 import { uploadProfilePicture as uploadProfileMiddleware } from '../middleware/uploadProfile.js';
 import {
   registerValidator,
@@ -27,18 +27,18 @@ router.post('/register', registerValidator, register);
 // POST /api/auth/login - Authenticate and return JWT
 router.post('/login', loginValidator, login);
 
-// Protected routes
+// Protected routes - Both admin and parent can manage their own profile
 // GET /api/auth/profile - Get current user profile
-router.get('/profile', protect, getProfile);
+router.get('/profile', protect, authorize('admin', 'parent'), getProfile);
 
 // PUT /api/auth/profile - Update current user profile
-router.put('/profile', protect, updateProfileValidator, updateProfile);
+router.put('/profile', protect, authorize('admin', 'parent'), updateProfileValidator, updateProfile);
 
 // POST /api/auth/profile-picture - Upload profile picture
-router.post('/profile-picture', protect, uploadProfileMiddleware, uploadProfilePicture);
+router.post('/profile-picture', protect, authorize('admin', 'parent'), uploadProfileMiddleware, uploadProfilePicture);
 
 // DELETE /api/auth/profile-picture - Remove profile picture
-router.delete('/profile-picture', protect, removeProfilePicture);
+router.delete('/profile-picture', protect, authorize('admin', 'parent'), removeProfilePicture);
 
 // POST /api/auth/forgot-password - Generate reset token
 router.post('/forgot-password', forgotPasswordValidator, forgotPassword);

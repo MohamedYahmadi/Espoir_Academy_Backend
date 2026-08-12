@@ -13,57 +13,57 @@ import { createChildValidator, updateChildValidator, childIdValidator } from '..
 
 const router = Router();
 
-// POST /api/children - Parent or Admin: Add a new child with optional file uploads
+// POST /api/children - Parent only: Add a new child with optional file uploads
 router.post(
   '/',
   protect,
-  authorize('parent', 'admin'),
+  authorize('parent'),
   uploadMiddleware,
   createChildValidator,
   createChild
 );
 
-// GET /api/children - Parent or Admin: Get all children
+// GET /api/children - Parent only: Get all children belonging to the authenticated parent
 router.get(
   '/',
   protect,
-  authorize('parent', 'admin'),
+  authorize('parent'),
   getMyChildren
 );
 
-// GET /api/children/:id - Parent or Admin: Get single child
+// GET /api/children/:id - Parent only: Get single child details (with parent ownership guard)
 router.get(
   '/:id',
   protect,
-  authorize('parent', 'admin'),
+  authorize('parent'),
   childIdValidator,
   getChildById
 );
 
-// PUT /api/children/:id - Parent or Admin: Update child info (with optional file uploads)
+// PUT /api/children/:id - Parent only: Update child info (with optional file uploads)
 router.put(
   '/:id',
   protect,
-  authorize('parent', 'admin'),
+  authorize('parent'),
   uploadMiddleware,
   updateChildValidator,
   updateChild
 );
 
-// PATCH /api/children/:id/documents - Parent or Admin: Upload documents for existing child
+// PATCH /api/children/:id/documents - Parent only: Upload documents for existing child
 router.patch(
   '/:id/documents',
   protect,
-  authorize('parent', 'admin'),
+  authorize('parent'),
   uploadMiddleware,
   uploadChildDocsController
 );
 
-// DELETE /api/children/:id - Parent or Admin: Delete child profile
+// DELETE /api/children/:id - Parent only: Delete child profile
 router.delete(
   '/:id',
   protect,
-  authorize('parent', 'admin'),
+  authorize('parent'),
   childIdValidator,
   deleteChild
 );

@@ -19,22 +19,27 @@ const generateTempPassword = (): string => {
 
 /**
  * GET /api/users
- * Admin only: List all users with optional filters
+ * Admin only: List all users with optional filters (excludes admin users)
  */
 export const getAllUsers = async (
   req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
-    const { role, isActive, search } = req.query;
+    const { role, isActive, search, includeInactive } = req.query;
     const filter: Record<string, unknown> = {};
 
-    if (role && typeof role === 'string') {
-      filter.role = role;
-    }
-    if (isActive !== undefined) {
+    // Exclude admin users from the list - they manage themselves
+    filter.role = 'parent';
+
+    // By default, only show active users unless includeInactive=true
+    if (includeInactive !== 'true') {
+      filter.isActive = true;
+    } else if (isActive !== undefined) {
+      // If includeInactive=true and explicit isActive filter provided, use that
       filter.isActive = isActive === 'true';
     }
+
     if (search && typeof search === 'string') {
       filter.$or = [
         { fullName: { $regex: search, $options: 'i' } },
@@ -103,7 +108,7 @@ export const getUserById = async (
 
 /**
  * PUT /api/users/:id
- * Admin only: Update user (name, email, phone, role, isActive)
+ * Admin only: Update user (role, isActive only - not profile fields)
  */
 export const updateUser = async (
   req: AuthRequest,
@@ -121,7 +126,7 @@ export const updateUser = async (
     }
 
     const { id } = req.params;
-    const { fullName, email, phone, role, isActive } = req.body;
+    const { role, isActive } = req.body;
 
     const user = await User.findById(id);
     if (!user) {
@@ -133,9 +138,7 @@ export const updateUser = async (
       return;
     }
 
-    if (fullName !== undefined) user.fullName = fullName;
-    if (email !== undefined) user.email = email;
-    if (phone !== undefined) user.phone = phone;
+    // Admin can only update role and isActive, not profile fields (fullName, email, phone)
     if (role !== undefined) user.role = role;
     if (isActive !== undefined) user.isActive = isActive;
 
@@ -244,6 +247,54 @@ export const deactivateUser = async (
       success: false,
       status: 500,
       message: 'Server error while deactivating user.',
+    });
+  }
+};
+
+/**
+ * PATCH /api/users/:id/reactivate
+ * Admin only: Reactivate a deactivated user
+ */
+export const reactivateUser = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        status: 404,
+        message: 'User not found.',
+      });
+      return;
+    }
+
+    if (user.isActive) {
+      res.status(400).json({
+        success: false,
+        status: 400,
+        message: 'User is already active.',
+      });
+      return;
+    }
+
+    user.isActive = true;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'User reactivated successfully.',
+      data: user,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: 500,
+      message: 'Server error while reactivating user.',
     });
   }
 };

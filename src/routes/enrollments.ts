@@ -14,28 +14,28 @@ import {
 
 const router = Router();
 
-// POST /api/enrollments - Parent or Admin: Request enrollment
+// POST /api/enrollments - Parent only: Request enrollment
 router.post(
   '/',
   protect,
-  authorize('parent', 'admin'),
+  authorize('parent'),
   createEnrollmentValidator,
   createEnrollment
 );
 
-// GET /api/enrollments/child/:childId - Parent or Admin: Fetch enrollments for a specific child
+// GET /api/enrollments/child/:childId - Parent only: Fetch enrollments for a specific child
 router.get(
   '/child/:childId',
   protect,
-  authorize('parent', 'admin'),
+  authorize('parent'),
   getMyKidsEnrollments
 );
 
-// GET /api/enrollments/my-kids - Parent or Admin: Fetch my kids enrollments
+// GET /api/enrollments/my-kids - Parent only: Fetch my kids enrollments
 router.get(
   '/my-kids',
   protect,
-  authorize('parent', 'admin'),
+  authorize('parent'),
   getMyKidsEnrollments
 );
 

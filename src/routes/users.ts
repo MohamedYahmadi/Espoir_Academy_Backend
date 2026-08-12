@@ -5,6 +5,7 @@ import {
   updateUser,
   resetUserPassword,
   deactivateUser,
+  reactivateUser,
   getUserChildren,
 } from '../controllers/userController.js';
 import { protect, authorize } from '../middleware/auth.js';
@@ -54,6 +55,15 @@ router.delete(
   authorize('admin'),
   userIdValidator,
   deactivateUser
+);
+
+// PATCH /api/users/:id/reactivate - Admin only: Reactivate user
+router.patch(
+  '/:id/reactivate',
+  protect,
+  authorize('admin'),
+  userIdValidator,
+  reactivateUser
 );
 
 // GET /api/users/:id/children - Admin only: Get user's children

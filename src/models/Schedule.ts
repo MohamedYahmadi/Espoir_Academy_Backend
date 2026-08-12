@@ -2,6 +2,7 @@ import mongoose, { Document, Schema, Types } from 'mongoose';
 
 export interface ISchedule extends Document {
   sportId: Types.ObjectId;
+  date?: Date;
   dayOfWeek: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
   startTime: string;
   endTime: string;
@@ -20,6 +21,10 @@ const scheduleSchema = new Schema<ISchedule>(
       ref: 'Sport',
       required: [true, 'Sport ID is required'],
       index: true,
+    },
+    date: {
+      type: Date,
+      default: null,
     },
     dayOfWeek: {
       type: String,

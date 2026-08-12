@@ -5,6 +5,7 @@ export interface ISport extends Document {
   nameArabic?: string;
   price: number;
   description?: string;
+  image?: string;
   maxCapacity: number;
   minAge: number;
   maxAge: number;
@@ -30,6 +31,10 @@ const sportSchema = new Schema<ISport>(
       min: [0, 'Price cannot be negative'],
     },
     description: {
+      type: String,
+      default: '',
+    },
+    image: {
       type: String,
       default: '',
     },

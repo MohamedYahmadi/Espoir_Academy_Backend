@@ -102,6 +102,7 @@ export const createSportValidator = [
     .isFloat({ min: 0 })
     .withMessage('Price must be a positive number'),
   body('description').optional().trim(),
+  body('image').optional().trim(),
   body('maxCapacity')
     .optional()
     .isInt({ min: 1 })
@@ -134,6 +135,7 @@ export const updateSportValidator = [
     .isFloat({ min: 0 })
     .withMessage('Price must be a positive number'),
   body('description').optional().trim(),
+  body('image').optional().trim(),
   body('maxCapacity')
     .optional()
     .isInt({ min: 1 })
@@ -263,22 +265,6 @@ export const statusQueryValidator = [
 
 export const updateUserValidator = [
   param('id').isMongoId().withMessage('Invalid user ID'),
-  body('fullName')
-    .optional()
-    .trim()
-    .isLength({ min: 2, max: 100 })
-    .withMessage('Full name must be between 2 and 100 characters'),
-  body('email')
-    .optional()
-    .trim()
-    .isEmail()
-    .withMessage('Invalid email format')
-    .normalizeEmail(),
-  body('phone')
-    .optional()
-    .trim()
-    .matches(/^[0-9+\-\s()]{8,20}$/)
-    .withMessage('Invalid phone number format'),
   body('role')
     .optional()
     .isIn(['admin', 'parent'])

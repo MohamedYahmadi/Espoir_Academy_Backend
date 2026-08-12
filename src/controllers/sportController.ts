@@ -48,13 +48,14 @@ export const createSport = async (
       return;
     }
 
-    const { name, nameArabic, price, description, maxCapacity, minAge, maxAge, scheduleInfo } = req.body;
+    const { name, nameArabic, price, description, image, maxCapacity, minAge, maxAge, scheduleInfo } = req.body;
 
     const sport = await Sport.create({
       name,
       nameArabic,
       price,
       description,
+      image,
       maxCapacity,
       minAge,
       maxAge,

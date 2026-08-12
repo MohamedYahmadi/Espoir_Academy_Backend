@@ -58,6 +58,12 @@ const userSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
+// Partial unique index: only one active user per email (allows deactivated emails to be reused)
+userSchema.index(
+  { email: 1 },
+  { unique: true, partialFilterExpression: { isActive: true } }
+);
+
 // Hash password before saving
 userSchema.pre('save', async function () {
   if (!this.isModified('password')) {

@@ -67,6 +67,7 @@ export const createSchedule = async (
 
     const {
       sportId,
+      date,
       dayOfWeek,
       startTime,
       endTime,
@@ -91,6 +92,7 @@ export const createSchedule = async (
 
     const schedule = await Schedule.create({
       sportId,
+      date,
       dayOfWeek,
       startTime,
       endTime,
