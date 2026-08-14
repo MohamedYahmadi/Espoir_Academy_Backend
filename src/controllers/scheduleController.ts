@@ -7,17 +7,36 @@ import Enrollment from '../models/Enrollment.js';
 import Child from '../models/Child.js';
 import User from '../models/User.js';
 import { sendScheduleUpdateEmail } from '../services/emailService.js';
+import { notifyParentsOfSport } from '../services/notificationService.js';
+
+const DAY_NAMES = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
+
+/**
+ * Derive the day-of-week name from a date string or Date.
+ */
+const getDayOfWeek = (date: string | Date): string => {
+  const d = new Date(date);
+  return DAY_NAMES[d.getDay()];
+};
 
 /**
  * GET /api/schedules
- * Public: View all schedules optionally filtered by sport
+ * Public: View all schedules optionally filtered by sport or date
  */
 export const getAllSchedules = async (
   req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
-    const { sportId, dayOfWeek } = req.query;
+    const { sportId, dayOfWeek, date, from, to } = req.query;
     const filter: Record<string, unknown> = {};
 
     if (sportId && typeof sportId === 'string') {
@@ -26,10 +45,29 @@ export const getAllSchedules = async (
     if (dayOfWeek && typeof dayOfWeek === 'string') {
       filter.dayOfWeek = dayOfWeek;
     }
+    if (date && typeof date === 'string') {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+      filter.date = { $gte: start, $lt: end };
+    }
+    if (from || to) {
+      const range: Record<string, Date> = {};
+      if (from && typeof from === 'string') {
+        range.$gte = new Date(from);
+      }
+      if (to && typeof to === 'string') {
+        const end = new Date(to);
+        end.setHours(23, 59, 59, 999);
+        range.$lte = end;
+      }
+      filter.date = { ...(filter.date as object), ...range };
+    }
 
     const schedules = await Schedule.find(filter)
       .populate('sportId', 'name price minAge maxAge')
-      .sort({ dayOfWeek: 1, startTime: 1 });
+      .sort({ date: 1, startTime: 1 });
 
     res.status(200).json({
       success: true,
@@ -93,7 +131,7 @@ export const createSchedule = async (
     const schedule = await Schedule.create({
       sportId,
       date,
-      dayOfWeek,
+      dayOfWeek: dayOfWeek || getDayOfWeek(date),
       startTime,
       endTime,
       groupName,
@@ -108,6 +146,23 @@ export const createSchedule = async (
       'sportId',
       'name price minAge maxAge'
     );
+
+    // Notify parents of children enrolled in this sport (targeted)
+    if (schedule.sportId) {
+      const sport = await Sport.findById(schedule.sportId).select('name');
+      const dateStr = new Date(schedule.date).toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+      });
+      await notifyParentsOfSport(schedule.sportId, {
+        type: 'SCHEDULE_CREATED',
+        title: 'Nouvelle séance planifiée',
+        message: `Une nouvelle séance de ${sport?.name || 'sport'} a été ajoutée le ${dateStr} à ${schedule.startTime}.`,
+        sportId: schedule.sportId,
+        scheduleId: schedule._id,
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -144,7 +199,11 @@ export const updateSchedule = async (
     }
 
     const { id } = req.params;
-    const updateData = req.body;
+    const updateData = req.body as Record<string, unknown>;
+
+    if (updateData.date && !updateData.dayOfWeek) {
+      updateData.dayOfWeek = getDayOfWeek(updateData.date as string);
+    }
 
     const schedule = await Schedule.findByIdAndUpdate(id, updateData, {
       new: true,
@@ -196,6 +255,23 @@ export const updateSchedule = async (
           );
         }
       }
+    }
+
+    // Notify parents of children enrolled in this sport (targeted)
+    if (schedule.sportId) {
+      const sport = await Sport.findById(schedule.sportId).select('name');
+      const dateStr = new Date(schedule.date).toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+      });
+      await notifyParentsOfSport(schedule.sportId, {
+        type: 'SCHEDULE_UPDATED',
+        title: 'Séance mise à jour',
+        message: `La séance de ${sport?.name || 'sport'} du ${dateStr} est désormais à ${schedule.startTime} - ${schedule.endTime}.`,
+        sportId: schedule.sportId,
+        scheduleId: schedule._id,
+      });
     }
 
     res.status(200).json({

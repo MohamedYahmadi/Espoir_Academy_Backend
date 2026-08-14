@@ -6,6 +6,7 @@ import {
   deleteSport,
 } from '../controllers/sportController.js';
 import { protect, authorize } from '../middleware/auth.js';
+import { uploadSportImage } from '../middleware/uploadProfile.js';
 import {
   createSportValidator,
   updateSportValidator,
@@ -22,6 +23,7 @@ router.post(
   '/',
   protect,
   authorize('admin'),
+  uploadSportImage,
   createSportValidator,
   createSport
 );
@@ -31,6 +33,7 @@ router.put(
   '/:id',
   protect,
   authorize('admin'),
+  uploadSportImage,
   updateSportValidator,
   updateSport
 );

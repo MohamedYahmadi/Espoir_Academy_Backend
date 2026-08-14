@@ -1,9 +1,11 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import { createServer } from 'http';
 import app from './app.js';
 import connectDB from './config/db.js';
 import { seedAll } from './seeders/seedData.js';
+import { initSocket } from './services/socketService.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -18,10 +20,15 @@ const startServer = async (): Promise<void> => {
     // Seed default admin account
     await seedAll();
 
-    // Start Express server
-    app.listen(PORT, () => {
+    // Create HTTP server and attach Socket.IO for real-time notifications
+    const httpServer = createServer(app);
+    initSocket(httpServer);
+
+    // Start server
+    httpServer.listen(PORT, () => {
       console.log(`🚀 Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
       console.log(`📍 http://localhost:${PORT}/api/health`);
+      console.log(`🔌 WebSocket ready on port ${PORT}`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

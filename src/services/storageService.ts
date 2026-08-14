@@ -43,7 +43,7 @@ const generateFileName = (fieldname: string, originalName: string): string => {
 };
 
 export interface SaveFileOptions {
-  folder: 'documents' | 'profiles';
+  folder: 'documents' | 'profiles' | 'sports';
   fieldname: string;
   originalname: string;
   mimetype: string;

@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { validationResult } from 'express-validator';
 import { AuthRequest } from '../middleware/auth.js';
 import Sport from '../models/Sport.js';
+import { notifyAllParents } from '../services/notificationService.js';
+import { saveFile, deleteFile } from '../services/storageService.js';
 
 /**
  * GET /api/sports
@@ -50,16 +52,34 @@ export const createSport = async (
 
     const { name, nameArabic, price, description, image, maxCapacity, minAge, maxAge, scheduleInfo } = req.body;
 
+    let sportImage = image;
+    if (req.file) {
+      sportImage = await saveFile(req.file.buffer, {
+        folder: 'sports',
+        fieldname: 'image',
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+      });
+    }
+
     const sport = await Sport.create({
       name,
       nameArabic,
       price,
       description,
-      image,
+      image: sportImage,
       maxCapacity,
       minAge,
       maxAge,
       scheduleInfo,
+    });
+
+    // Notify all active parents about the new sport
+    await notifyAllParents({
+      type: 'SPORT_CREATED',
+      title: 'Nouveau sport disponible',
+      message: `Le sport ${name} est maintenant disponible à l'inscription.`,
+      sportId: sport._id,
     });
 
     res.status(201).json({
@@ -107,6 +127,30 @@ export const updateSport = async (
 
     const { id } = req.params;
     const updateData = req.body;
+
+    const existingSport = await Sport.findById(id);
+    if (!existingSport) {
+      res.status(404).json({
+        success: false,
+        status: 404,
+        message: 'Sport not found.',
+      });
+      return;
+    }
+
+    if (req.file) {
+      const sportImage = await saveFile(req.file.buffer, {
+        folder: 'sports',
+        fieldname: 'image',
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+      });
+      updateData.image = sportImage;
+
+      if (existingSport.image) {
+        await deleteFile(existingSport.image).catch(() => {});
+      }
+    }
 
     const sport = await Sport.findByIdAndUpdate(id, updateData, {
       new: true,
@@ -165,6 +209,11 @@ export const deleteSport = async (
         message: 'Sport not found.',
       });
       return;
+    }
+
+    // Remove the sport image from storage (best-effort)
+    if (sport.image) {
+      await deleteFile(sport.image).catch(() => {});
     }
 
     res.status(200).json({

@@ -15,6 +15,7 @@ import enrollmentRoutes from './routes/enrollments.js';
 import userRoutes from './routes/users.js';
 import paymentRoutes from './routes/payments.js';
 import scheduleRoutes from './routes/schedules.js';
+import notificationRoutes from './routes/notifications.js';
 import errorHandler from './middleware/errorHandler.js';
 import { getFileStream, isS3Storage } from './services/storageService.js';
 
@@ -160,6 +161,7 @@ app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/schedules', scheduleRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // ===================== 404 Handler =====================
 app.use((_req, res) => {

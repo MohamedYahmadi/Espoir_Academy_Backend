@@ -38,3 +38,6 @@ const upload = multer({
 
 // Single file upload for profile picture
 export const uploadProfilePicture = upload.single('profilePicture');
+
+// Single file upload for sport image (same image-only rules)
+export const uploadSportImage = upload.single('image');

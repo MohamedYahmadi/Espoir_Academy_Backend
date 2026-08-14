@@ -329,10 +329,14 @@ export const createScheduleValidator = [
     .withMessage('Sport ID is required')
     .isMongoId()
     .withMessage('Invalid sport ID'),
-  body('dayOfWeek')
-    .trim()
+  body('date')
     .notEmpty()
-    .withMessage('Day of week is required')
+    .withMessage('Date is required')
+    .isISO8601()
+    .withMessage('Invalid date format. Use ISO8601 (YYYY-MM-DD)'),
+  body('dayOfWeek')
+    .optional()
+    .trim()
     .isIn(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
     .withMessage('Day of week must be a valid day'),
   body('startTime')
@@ -370,6 +374,10 @@ export const updateScheduleValidator = [
     .optional()
     .isMongoId()
     .withMessage('Invalid sport ID'),
+  body('date')
+    .optional()
+    .isISO8601()
+    .withMessage('Invalid date format. Use ISO8601 (YYYY-MM-DD)'),
   body('dayOfWeek')
     .optional()
     .trim()
