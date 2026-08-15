@@ -110,7 +110,48 @@ const sendEmail = async (
 // ============================================================
 
 /**
- * 1. Welcome email — sent after registration
+ * 1. Email verification email — sent after registration
+ */
+export const sendVerificationEmail = async (
+  to: string,
+  fullName: string,
+  verificationToken: string
+): Promise<void> => {
+  const verifyUrl = `${process.env.CLIENT_URL}/verify-email/${verificationToken}`;
+  const html = `
+    <h2 style="color:#dc2626; font-size:24px; margin:0 0 20px 0;">Vérifiez votre email</h2>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 16px 0;">
+      Cher(e) ${fullName},
+    </p>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      Merci d'avoir créé votre compte sur ESPOIRS ACADEMY. Pour activer votre compte et
+      pouvoir vous connecter, veuillez confirmer votre adresse email en cliquant sur le bouton
+      ci-dessous. Ce lien est valide pendant <strong>24 heures</strong>.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:30px 0;">
+      <tr>
+        <td align="center" style="background:#dc2626; color:#ffffff; padding:14px 32px; border-radius:8px; font-size:16px; font-weight:600;">
+          <a href="${verifyUrl}" style="color:#ffffff; text-decoration:none;">
+            Confirmer mon email
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 16px 0;">
+      Ou copiez ce lien dans votre navigateur :
+    </p>
+    <p style="color:#6b7280; font-size:13px; word-break:break-all; margin:0 0 24px 0;">
+      ${verifyUrl}
+    </p>
+    <p style="color:#6b7280; font-size:14px; line-height:1.6; margin:0;">
+      Si vous n'êtes pas à l'origine de cette inscription, vous pouvez ignorer cet email.
+    </p>
+  `;
+  await sendEmail(to, 'Confirmez votre email — ESPOIRS ACADEMY', html);
+};
+
+/**
+ * 1b. Welcome email — sent after registration
  */
 export const sendWelcomeEmail = async (
   to: string,
@@ -458,6 +499,109 @@ export const sendAdminUserUpdatedEmail = async (
     </p>
   `;
   await sendEmail(to, 'Vos informations ont été mises à jour — ESPOIRS ACADEMY', html);
+};
+
+/**
+ * 10. Contact message email — sent when a logged-in user submits the contact form.
+ * The message is delivered to the academy's inbox (the same SMTP account used
+ * for all outgoing emails) so the admin can reply to the sender's email.
+ */
+export const sendContactMessageEmail = async (options: {
+  senderEmail: string;
+  senderName: string;
+  phone: string;
+  sport: string;
+  message: string;
+}): Promise<void> => {
+  const { senderEmail, senderName, phone, sport, message } = options;
+  const adminInbox = process.env.SMTP_FROM || process.env.SMTP_USER || '';
+
+  const html = `
+    <h2 style="color:#dc2626; font-size:24px; margin:0 0 20px 0;">Nouveau message de contact</h2>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 16px 0;">
+      Un membre de l'académie a envoyé un message depuis la page contact.
+    </p>
+    <div style="background:#f3f4f6; border-left:4px solid #dc2626; padding:16px 20px; margin:0 0 24px 0; border-radius:4px;">
+      <p style="color:#374151; font-size:15px; margin:0 0 6px 0;">
+        <strong>Nom :</strong> ${senderName}
+      </p>
+      <p style="color:#374151; font-size:15px; margin:0 0 6px 0;">
+        <strong>Email :</strong> <a href="mailto:${senderEmail}" style="color:#dc2626;">${senderEmail}</a>
+      </p>
+      <p style="color:#374151; font-size:15px; margin:0 0 6px 0;">
+        <strong>Téléphone :</strong> ${phone}
+      </p>
+      ${sport ? `<p style="color:#374151; font-size:15px; margin:0 0 6px 0;"><strong>Sport :</strong> ${sport}</p>` : ''}
+      <hr style="border:none; border-top:1px solid #e5e7eb; margin:16px 0;">
+      <p style="color:#374151; font-size:15px; margin:0;">
+        <strong>Message :</strong><br>
+        ${message.replace(/\n/g, '<br>')}
+      </p>
+    </div>
+    <p style="color:#6b7280; font-size:14px; line-height:1.6; margin:0 0 16px 0;">
+      Répondez directement à cet email pour aider ce membre.
+    </p>
+  `;
+
+  await sendEmail(
+    adminInbox,
+    `Nouveau message de ${senderName} — ESPOIRS ACADEMY`,
+    html
+  );
+};
+
+/**
+ * 11. Contact reply email — sent to the user when the admin responds to their message.
+ * The reply is also delivered in-app via the notification center.
+ */
+export const sendContactReplyEmail = async (options: {
+  to: string;
+  fullName: string;
+  originalMessage: string;
+  reply: string;
+}): Promise<void> => {
+  const { to, fullName, originalMessage, reply } = options;
+
+  const html = `
+    <h2 style="color:#dc2626; font-size:24px; margin:0 0 20px 0;">Réponse de l'académie</h2>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 16px 0;">
+      Cher(e) ${fullName},
+    </p>
+    <p style="color:#374151; font-size:16px; line-height:1.7; margin:0 0 24px 0;">
+      L'académie a répondu à votre message. Vous pouvez également consulter la réponse
+      dans votre <strong>centre de notifications</strong> sur votre espace.
+    </p>
+    <div style="background:#f3f4f6; border-left:4px solid #9ca3af; padding:16px 20px; margin:0 0 16px 0; border-radius:4px;">
+      <p style="color:#374151; font-size:14px; margin:0 0 4px 0;">
+        <strong style="color:#6b7280;">Votre message :</strong>
+      </p>
+      <p style="color:#374151; font-size:15px; margin:0;">
+        ${originalMessage.replace(/\n/g, '<br>')}
+      </p>
+    </div>
+    <div style="background:#f3f4f6; border-left:4px solid #dc2626; padding:16px 20px; margin:0 0 24px 0; border-radius:4px;">
+      <p style="color:#374151; font-size:14px; margin:0 0 4px 0;">
+        <strong style="color:#dc2626;">Réponse de l'académie :</strong>
+      </p>
+      <p style="color:#374151; font-size:15px; margin:0;">
+        ${reply.replace(/\n/g, '<br>')}
+      </p>
+    </div>
+    <table cellpadding="0" cellspacing="0" style="margin:30px 0;">
+      <tr>
+        <td align="center" style="background:#dc2626; color:#ffffff; padding:14px 32px; border-radius:8px; font-size:16px; font-weight:600;">
+          <a href="${process.env.CLIENT_URL}/dashboard" style="color:#ffffff; text-decoration:none;">
+            Voir ma réponse
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:#6b7280; font-size:14px; line-height:1.6; margin:0;">
+      Cordialement, l'équipe ESPOIRS ACADEMY.
+    </p>
+  `;
+
+  await sendEmail(to, 'Réponse à votre message — ESPOIRS ACADEMY', html);
 };
 
 export default getTransporter;

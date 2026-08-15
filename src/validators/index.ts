@@ -71,6 +71,16 @@ export const forgotPasswordValidator = [
     .normalizeEmail(),
 ];
 
+export const resendVerificationValidator = [
+  body('email')
+    .trim()
+    .notEmpty()
+    .withMessage('Email is required')
+    .isEmail()
+    .withMessage('Invalid email format')
+    .normalizeEmail(),
+];
+
 export const resetPasswordValidator = [
   param('token')
     .notEmpty()
@@ -412,4 +422,43 @@ export const updateScheduleValidator = [
 
 export const scheduleIdValidator = [
   param('id').isMongoId().withMessage('Invalid schedule ID'),
+];
+
+// ===================== Contact Validators =====================
+
+export const contactMessageValidator = [
+  body('name')
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Name must be at most 100 characters'),
+  body('phone')
+    .optional()
+    .trim()
+    .matches(/^[0-9+\-\s()]{8,20}$/)
+    .withMessage('Invalid phone number format'),
+  body('sport')
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Sport must be at most 100 characters'),
+  body('message')
+    .trim()
+    .notEmpty()
+    .withMessage('Message is required')
+    .isLength({ min: 5, max: 3000 })
+    .withMessage('Message must be between 5 and 3000 characters'),
+];
+
+export const contactReplyValidator = [
+  body('reply')
+    .trim()
+    .notEmpty()
+    .withMessage('Reply is required')
+    .isLength({ min: 2, max: 3000 })
+    .withMessage('Reply must be between 2 and 3000 characters'),
+];
+
+export const contactMessageIdValidator = [
+  param('id').isMongoId().withMessage('Invalid message ID'),
 ];

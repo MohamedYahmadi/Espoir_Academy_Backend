@@ -1,5 +1,16 @@
 import dotenv from 'dotenv';
-dotenv.config();
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load the environment file matching NODE_ENV (e.g. .env.production),
+// falling back to .env for local development.
+const nodeEnv = process.env.NODE_ENV || 'development';
+const envPath = path.resolve(__dirname, '..', `.env.${nodeEnv}`);
+dotenv.config({ path: fs.existsSync(envPath) ? envPath : path.resolve(__dirname, '..', '.env') });
 
 import { createServer } from 'http';
 import app from './app.js';

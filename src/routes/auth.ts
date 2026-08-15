@@ -2,6 +2,8 @@ import { Router } from 'express';
 import {
   register,
   login,
+  verifyEmail,
+  resendVerification,
   getProfile,
   updateProfile,
   uploadProfilePicture,
@@ -17,12 +19,19 @@ import {
   updateProfileValidator,
   forgotPasswordValidator,
   resetPasswordValidator,
+  resendVerificationValidator,
 } from '../validators/index.js';
 
 const router = Router();
 
 // POST /api/auth/register - Register a parent account
 router.post('/register', registerValidator, register);
+
+// GET /api/auth/verify-email/:token - Verify an email address
+router.get('/verify-email/:token', verifyEmail);
+
+// POST /api/auth/resend-verification - Resend verification email
+router.post('/resend-verification', resendVerificationValidator, resendVerification);
 
 // POST /api/auth/login - Authenticate and return JWT
 router.post('/login', loginValidator, login);

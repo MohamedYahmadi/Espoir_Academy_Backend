@@ -9,11 +9,15 @@ export interface IUser extends Document {
   phone: string;
   role: 'admin' | 'parent';
   isActive: boolean;
+  isVerified: boolean;
   profilePicture?: string;
   resetPasswordToken?: string;
   resetPasswordExpire?: Date;
+  emailVerificationToken?: string;
+  emailVerificationExpire?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
   getResetPasswordToken(): string;
+  getEmailVerificationToken(): string;
 }
 
 const userSchema = new Schema<IUser>(
@@ -48,12 +52,20 @@ const userSchema = new Schema<IUser>(
       type: Boolean,
       default: true,
     },
+    isVerified: {
+      // Default true so existing accounts (and the seeded admin) remain
+      // usable; new registrations explicitly set this to false.
+      type: Boolean,
+      default: true,
+    },
     profilePicture: {
       type: String,
       default: '',
     },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
+    emailVerificationToken: String,
+    emailVerificationExpire: Date,
   },
   { timestamps: true }
 );
@@ -94,12 +106,28 @@ userSchema.methods.getResetPasswordToken = function (): string {
   return resetToken;
 };
 
+// Generate and hash email verification token (valid for 24 hours)
+userSchema.methods.getEmailVerificationToken = function (): string {
+  const verificationToken = crypto.randomBytes(20).toString('hex');
+
+  this.emailVerificationToken = crypto
+    .createHash('sha256')
+    .update(verificationToken)
+    .digest('hex');
+
+  this.emailVerificationExpire = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+  return verificationToken;
+};
+
 // Remove password from JSON output
 userSchema.set('toJSON', {
   transform: (_doc: IUser, ret: Partial<IUser>) => {
     delete ret.password;
     delete ret.resetPasswordToken;
     delete ret.resetPasswordExpire;
+    delete ret.emailVerificationToken;
+    delete ret.emailVerificationExpire;
     return ret;
   },
 });

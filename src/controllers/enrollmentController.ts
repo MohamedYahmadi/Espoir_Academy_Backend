@@ -292,7 +292,8 @@ export const getAllEnrollments = async (
     const enrollments = await Enrollment.find(filter)
       .populate({
         path: 'childId',
-        select: 'firstName lastName dateOfBirth gender documents.photoUrl parentId',
+        select:
+          'firstName lastName dateOfBirth gender documents.photoUrl documents.birthCertificateUrl documents.medicalCertificateUrl parentId',
         populate: {
           path: 'parentId',
           select: 'fullName email phone',

@@ -8,7 +8,8 @@ import { getIO, isSocketInitialized } from './socketService.js';
 export type NotificationType =
   | 'SCHEDULE_CREATED'
   | 'SCHEDULE_UPDATED'
-  | 'SPORT_CREATED';
+  | 'SPORT_CREATED'
+  | 'CONTACT_REPLY';
 
 type NotificationDocWithTimestamps = {
   _id: unknown;
@@ -102,6 +103,20 @@ export const notifyParentsOfSport = async (
     await createAndEmit(parentIds, input);
   } catch (error) {
     console.error('Failed to notify parents of sport:', error);
+  }
+};
+
+/**
+ * Notify a single user (e.g. a contact-message reply).
+ */
+export const notifyUser = async (
+  recipientId: Types.ObjectId | string,
+  input: CreateNotificationInput
+): Promise<void> => {
+  try {
+    await createAndEmit([recipientId], input);
+  } catch (error) {
+    console.error('Failed to notify user:', error);
   }
 };
 

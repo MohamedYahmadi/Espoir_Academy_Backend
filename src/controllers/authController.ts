@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { validationResult } from 'express-validator';
 import User from '../models/User.js';
 import { AuthRequest } from '../middleware/auth.js';
-import { sendWelcomeEmail, sendPasswordResetEmail, sendProfileUpdateEmail, sendPasswordChangedEmail } from '../services/emailService.js';
+import { sendWelcomeEmail, sendVerificationEmail, sendPasswordResetEmail, sendProfileUpdateEmail, sendPasswordChangedEmail } from '../services/emailService.js';
 import { saveFile, deleteFile } from '../services/storageService.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -53,21 +53,23 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       email,
       password,
       phone,
+      isVerified: false,
     });
 
-    const token = generateToken(user._id.toString(), user.role);
+    // Generate a verification token and send the confirmation email
+    const verificationToken = user.getEmailVerificationToken();
+    await user.save({ validateBeforeSave: false });
 
-    // Send welcome email (non-blocking)
-    sendWelcomeEmail(user.email, user.fullName).catch((err) =>
-      console.error('Failed to send welcome email:', err)
+    sendVerificationEmail(user.email, user.fullName, verificationToken).catch((err) =>
+      console.error('Failed to send verification email:', err)
     );
 
     res.status(201).json({
       success: true,
       status: 201,
-      message: 'Account created successfully.',
+      message:
+        'Account created successfully. Please check your email to verify your account before logging in.',
       data: {
-        token,
         user: {
           id: user._id,
           fullName: user.fullName,
@@ -75,6 +77,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
           phone: user.phone,
           role: user.role,
           isActive: user.isActive,
+          isVerified: user.isVerified,
         },
       },
     });
@@ -83,6 +86,134 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       success: false,
       status: 500,
       message: 'Server error during registration.',
+    });
+  }
+};
+
+/**
+ * GET /api/auth/verify-email/:token
+ * Verify a user's email address using the emailed token
+ */
+export const verifyEmail = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { token } = req.params;
+
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(token as string)
+      .digest('hex');
+
+    const user = await User.findOne({
+      emailVerificationToken: hashedToken,
+      emailVerificationExpire: { $gt: new Date() },
+    });
+
+    if (!user) {
+      res.status(400).json({
+        success: false,
+        status: 400,
+        message: 'Invalid or expired verification link.',
+      });
+      return;
+    }
+
+    user.isVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpire = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    // Send the welcome email after a successful verification (non-blocking)
+    sendWelcomeEmail(user.email, user.fullName).catch((err) =>
+      console.error('Failed to send welcome email:', err)
+    );
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Email verified successfully.',
+      data: {
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          isActive: user.isActive,
+          isVerified: user.isVerified,
+          profilePicture: user.profilePicture,
+        },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: 500,
+      message: 'Server error while verifying email.',
+    });
+  }
+};
+
+/**
+ * POST /api/auth/resend-verification
+ * Resend the email verification link to an unverified account
+ */
+export const resendVerification = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({
+        success: false,
+        status: 400,
+        message: errors.array().map((e) => e.msg).join(', '),
+      });
+      return;
+    }
+
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Don't reveal whether the email exists
+      res.status(200).json({
+        success: true,
+        status: 200,
+        message: 'If this account exists, a verification email has been sent.',
+      });
+      return;
+    }
+
+    if (user.isVerified) {
+      res.status(200).json({
+        success: true,
+        status: 200,
+        message: 'This account is already verified. You can log in.',
+      });
+      return;
+    }
+
+    const verificationToken = user.getEmailVerificationToken();
+    await user.save({ validateBeforeSave: false });
+
+    sendVerificationEmail(user.email, user.fullName, verificationToken).catch((err) =>
+      console.error('Failed to send verification email:', err)
+    );
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'A new verification email has been sent. Please check your inbox.',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: 500,
+      message: 'Server error while resending verification email.',
     });
   }
 };
@@ -120,6 +251,17 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         success: false,
         status: 403,
         message: 'Your account has been deactivated. Contact the administrator.',
+      });
+      return;
+    }
+
+    if (!user.isVerified) {
+      res.status(403).json({
+        success: false,
+        status: 403,
+        code: 'EMAIL_NOT_VERIFIED',
+        message:
+          'Please verify your email address before logging in. Check your inbox for the verification link.',
       });
       return;
     }

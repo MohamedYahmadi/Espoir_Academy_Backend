@@ -2,7 +2,7 @@ import mongoose, { Document, Schema, Types } from 'mongoose';
 
 export interface INotification extends Document {
   recipientId: Types.ObjectId;
-  type: 'SCHEDULE_CREATED' | 'SCHEDULE_UPDATED' | 'SPORT_CREATED';
+  type: 'SCHEDULE_CREATED' | 'SCHEDULE_UPDATED' | 'SPORT_CREATED' | 'CONTACT_REPLY';
   title: string;
   message: string;
   sportId?: Types.ObjectId;
@@ -21,7 +21,7 @@ const notificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ['SCHEDULE_CREATED', 'SCHEDULE_UPDATED', 'SPORT_CREATED'],
+      enum: ['SCHEDULE_CREATED', 'SCHEDULE_UPDATED', 'SPORT_CREATED', 'CONTACT_REPLY'],
       required: [true, 'Notification type is required'],
     },
     title: {
