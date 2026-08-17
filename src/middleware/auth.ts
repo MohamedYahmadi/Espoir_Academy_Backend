@@ -61,6 +61,46 @@ export const protect = (
 };
 
 /**
+ * Optional authentication: populates req.user if a valid token is present,
+ * but does not block the request when the token is missing or invalid.
+ */
+export const protectOptional = (
+  req: AuthRequest,
+  _res: Response,
+  next: NextFunction
+): void => {
+  let token: string | undefined;
+
+  // Check Authorization header
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+
+  if (!token) {
+    next();
+    return;
+  }
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET!
+    ) as JwtPayload;
+
+    req.user = {
+      id: decoded.id,
+      role: decoded.role,
+    };
+  } catch (error) {
+    // Ignore invalid tokens for optional auth
+  }
+  next();
+};
+
+/**
  * Authorize by role(s)
  */
 export const authorize = (...roles: string[]) => {

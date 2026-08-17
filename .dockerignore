@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Build output
+dist/
+
+# Uploaded files (persisted via Docker volume, not in image)
+uploads/
+
+# Environment files (secrets — never copy into the image)
+.env
+.env.*
+!.env.example
+
+# VCS
+.git/
+.gitignore
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+
+# Docs
+README.md

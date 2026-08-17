@@ -11,7 +11,10 @@ import { notifyUser } from '../services/notificationService.js';
 
 /**
  * POST /api/contact
- * Logged-in user: send a message to the academy (persisted + delivered to admin inbox)
+ * Authenticated user: message is persisted (visible in the admin backoffice)
+ * and delivered to the academy inbox.
+ * Anonymous user: message is delivered to the academy inbox ONLY (email), it
+ * is not persisted in the app — the admin replies directly from the email.
  */
 export const sendContactMessage = async (
   req: AuthRequest,
@@ -28,42 +31,71 @@ export const sendContactMessage = async (
       return;
     }
 
-    const user = await User.findById(req.user!.id);
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        status: 404,
-        message: 'User not found.',
+    const { name, phone, sport, message, email } = req.body;
+
+    // Authenticated user
+    if (req.user?.id) {
+      const user = await User.findById(req.user.id);
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          status: 404,
+          message: 'User not found.',
+        });
+        return;
+      }
+
+      // Persist the message so the admin can view and reply to it in the backoffice
+      const contactMessage = await ContactMessage.create({
+        userId: user._id,
+        senderName: name || user.fullName,
+        senderEmail: user.email,
+        phone: phone || user.phone || '',
+        sport: sport || '',
+        message,
+      });
+
+      // Deliver to the academy inbox via the same SMTP account used for all emails
+      await sendContactMessageEmail({
+        senderEmail: user.email,
+        senderName: contactMessage.senderName,
+        phone: contactMessage.phone,
+        sport: contactMessage.sport || '',
+        message,
+      });
+
+      res.status(201).json({
+        success: true,
+        status: 201,
+        message: 'Message envoyé avec succès.',
+        data: contactMessage,
       });
       return;
     }
 
-    const { name, phone, sport, message } = req.body;
+    // Anonymous user: email only, nothing persisted in the app
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400).json({
+        success: false,
+        status: 400,
+        message: 'Un email valide est requis pour envoyer un message.',
+      });
+      return;
+    }
 
-    // Persist the message so the admin can view and reply to it in the backoffice
-    const contactMessage = await ContactMessage.create({
-      userId: user._id,
-      senderName: name || user.fullName,
-      senderEmail: user.email,
-      phone: phone || user.phone || '',
-      sport: sport || '',
-      message,
-    });
-
-    // Deliver to the academy inbox via the same SMTP account used for all emails
     await sendContactMessageEmail({
-      senderEmail: user.email,
-      senderName: contactMessage.senderName,
-      phone: contactMessage.phone,
-      sport: contactMessage.sport || '',
+      senderEmail: email,
+      senderName: name || email,
+      phone: phone || '',
+      sport: sport || '',
       message,
     });
 
     res.status(201).json({
       success: true,
       status: 201,
-      message: 'Message envoyé avec succès.',
-      data: contactMessage,
+      message: 'Message envoyé avec succès. Nous vous répondrons par email.',
+      data: { email },
     });
   } catch (error) {
     console.error('Failed to send contact message:', error);

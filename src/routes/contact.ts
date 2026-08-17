@@ -5,7 +5,7 @@ import {
   getAllMessages,
   replyContactMessage,
 } from '../controllers/contactController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, protectOptional, authorize } from '../middleware/auth.js';
 import {
   contactMessageValidator,
   contactReplyValidator,
@@ -14,8 +14,9 @@ import {
 
 const router = Router();
 
-// POST /api/contact - Logged-in user: send a message to the academy
-router.post('/', protect, contactMessageValidator, sendContactMessage);
+// POST /api/contact - Send a message to the academy
+// Authenticated users: message persisted + email. Anonymous users: email only.
+router.post('/', protectOptional, contactMessageValidator, sendContactMessage);
 
 // GET /api/contact/my - Logged-in user: their own messages and replies
 router.get('/my', protect, getMyMessages);

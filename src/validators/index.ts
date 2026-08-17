@@ -432,6 +432,11 @@ export const contactMessageValidator = [
     .trim()
     .isLength({ max: 100 })
     .withMessage('Name must be at most 100 characters'),
+  body('email')
+    .optional()
+    .trim()
+    .isEmail()
+    .withMessage('Invalid email format'),
   body('phone')
     .optional()
     .trim()
